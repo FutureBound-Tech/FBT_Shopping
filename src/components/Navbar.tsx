@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Search, Menu, User } from 'lucide-react';
 import './user.css';
@@ -40,13 +41,21 @@ export default function Navbar() {
   return (
     <>
     <nav className="glass-nav" style={{ position: 'sticky', top: 0, zIndex: 50, padding: '1.25rem 0' }}>
-      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        className="container"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingLeft: '1.5rem',
+          paddingRight: '1.5rem',
+        }}
+      >
         
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div className="logo-icon" style={{ background: 'var(--color-primary)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(255,51,102,0.3)' }}>
-            <ShoppingBag size={20} color="white" />
-          </div>
-          <span style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>FBT <span style={{color: 'var(--color-primary)'}}>Shop</span></span>
+          <span style={{ fontWeight: 900, fontSize: '1.4rem', letterSpacing: '-0.5px' }}>
+            FBT__<span style={{ color: 'var(--color-primary)' }}>Shopping</span>
+          </span>
         </Link>
         
         <div className="nav-filters desktop-only" style={{ display: 'flex', gap: '2rem', fontWeight: 600, color: 'var(--text-secondary)' }}>

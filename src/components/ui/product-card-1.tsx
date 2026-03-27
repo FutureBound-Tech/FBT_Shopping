@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,29 +16,13 @@ export interface ProductCardProps {
   rating?: number;
   reviewCount?: number;
   images?: string[];
-  colors?: string[];   // Color NAMES
+  colors?: string[];
   sizes?: string[];
   isNew?: boolean;
   isBestSeller?: boolean;
   discount?: number;
   freeShipping?: boolean;
 }
-
-const COLOR_MAP: Record<string, string> = {
-  Red: "#ef4444", Maroon: "#881337", Gold: "#d4a017", Golden: "#d4a017",
-  Blue: "#3b82f6", Navy: "#1e3a5f", "Sky Blue": "#7dd3fc", "Royal Blue": "#2563eb",
-  Green: "#22c55e", "Dark Green": "#166534", "Bottle Green": "#145a32", Emerald: "#059669",
-  Pink: "#ec4899", "Hot Pink": "#db2777", Rose: "#fb7185",
-  Purple: "#a855f7", Violet: "#7c3aed", Lavender: "#c4b5fd",
-  Orange: "#f97316", Peach: "#fdba74", Coral: "#fb7285",
-  Yellow: "#eab308", Mustard: "#ca8a04", Lemon: "#fde047", "Olive Green": "#6b7c2e",
-  Olive: "#84cc16", Saffron: "#f97316",
-  White: "#f8fafc", "Off White": "#f5f5f4", Cream: "#fef3c7", Ivory: "#fffff0",
-  Black: "#1e1e1e", Grey: "#6b7280", Gray: "#6b7280", Silver: "#94a3b8",
-  Brown: "#92400e", "Dark Brown": "#4a1f00", Chocolate: "#3d1f00", Beige: "#d6d3d1",
-  Teal: "#14b8a6", Wine: "#7f1d1d", Rust: "#c2410c", Magenta: "#d946ef",
-  Turquoise: "#06b6d4", Indigo: "#6366f1", Fuchsia: "#d946ef", Burgundy: "#800020",
-};
 
 export function ProductCard({
   name = "Premium Product",
@@ -63,16 +47,33 @@ export function ProductCard({
 
   const displayImages = images.length > 0 ? images : ["https://placehold.co/600x800/1e293b/f8fafc?text=No+Image"];
 
+  const touchStartX = useRef(0);
+
   const nextImage = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
   };
   const prevImage = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
   };
 
-  const handleAddToCart = () => {
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(diff) > 50) {
+      if (diff < 0) setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+      else setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+    }
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (isAddedToCart) return;
     setIsAddingToCart(true);
     setTimeout(() => {
@@ -83,8 +84,8 @@ export function ProductCard({
   };
 
   return (
-    <Card className="w-full max-w-sm overflow-hidden group bg-card text-foreground shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl border-border">
-      <div className="relative aspect-[3/4] overflow-hidden">
+    <Card className="w-full max-w-sm overflow-hidden group bg-card text-foreground shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl border-border flex flex-col">
+      <div className="relative aspect-[3/4] overflow-hidden" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
         <motion.img
           key={currentImageIndex}
           src={displayImages[currentImageIndex]}
@@ -102,7 +103,7 @@ export function ProductCard({
             </div>
             <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
               {displayImages.map((_, i) => (
-                <button key={i} className={`h-1.5 rounded-full transition-all ${i === currentImageIndex ? "bg-primary w-4" : "bg-primary/30 w-1.5"}`} onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(i); }} />
+                <button key={i} className={`h-1.5 rounded-full transition-all ${i === currentImageIndex ? "bg-primary w-4" : "bg-primary/30 w-1.5"}`} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setCurrentImageIndex(i); }} />
               ))}
             </div>
           </>
@@ -112,51 +113,71 @@ export function ProductCard({
           {isBestSeller && <Badge className="bg-amber-500 text-white">Best Seller</Badge>}
           {discount > 0 && <Badge className="bg-rose-500 text-white">-{discount}%</Badge>}
         </div>
-        <Button variant="secondary" size="icon" className={`absolute top-3 right-3 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm ${isWishlisted ? "text-rose-500" : ""}`} onClick={(e) => { e.stopPropagation(); setIsWishlisted(!isWishlisted); }}>
+        <Button variant="secondary" size="icon" className={`absolute top-3 right-3 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm ${isWishlisted ? "text-rose-500" : ""}`} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setIsWishlisted(!isWishlisted); }}>
           <Heart className={`h-4 w-4 ${isWishlisted ? "fill-rose-500" : ""}`} />
         </Button>
       </div>
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          <div>
-            <h3 className="font-semibold line-clamp-2 text-sm leading-tight">{name}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex items-center">
-                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                <span className="ml-1 text-xs font-medium">{rating}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">({reviewCount})</span>
-              {freeShipping && <span className="text-xs text-emerald-400 ml-auto">Free Delivery</span>}
+
+      <CardContent className="p-4 flex-1">
+        <div className="space-y-2">
+          <h3 className="font-semibold line-clamp-2 text-sm leading-tight">{name}</h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
+              <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+              <span className="ml-1 text-xs font-medium">{rating}</span>
             </div>
+            <span className="text-xs text-muted-foreground">({reviewCount})</span>
+            {freeShipping && <span className="text-xs text-emerald-400 ml-auto">Free Delivery</span>}
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold text-foreground">₹{price.toLocaleString("en-IN")}</span>
             {originalPrice && originalPrice > price && <span className="text-sm text-muted-foreground line-through">₹{originalPrice.toLocaleString("en-IN")}</span>}
           </div>
-          {colors.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-xs text-muted-foreground font-medium">Color: <span className="text-foreground font-semibold">{selectedColor}</span></div>
-              <div className="flex flex-wrap gap-2">
-                {colors.map((color) => (
-                  <button key={color} title={color} className={`w-6 h-6 rounded-full transition-all border-2 ${selectedColor === color ? "border-primary scale-110 shadow-md" : "border-transparent hover:border-muted-foreground"}`} style={{ backgroundColor: COLOR_MAP[color] || COLOR_MAP[color.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")] || "#888" }} onClick={() => setSelectedColor(color)} />
-                ))}
+
+          {/* Color names as select buttons */}
+          <div className="min-h-[44px]">
+            {colors.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground font-medium">Color</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {colors.map((color) => (
+                    <button
+                      key={color}
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setSelectedColor(color); }}
+                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all border ${
+                        selectedColor === color
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/50 border-border text-foreground hover:border-primary"
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          {sizes.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-xs text-muted-foreground font-medium">Size: <span className="text-foreground font-semibold">{selectedSize || "Select"}</span></div>
-              <div className="flex flex-wrap gap-1.5">
-                {sizes.map((size) => (
-                  <button key={size} className={`min-w-[2.2rem] h-8 px-2 rounded-lg text-xs font-semibold transition-all border ${selectedSize === size ? "bg-primary text-white border-primary" : "bg-card border-border hover:border-primary text-foreground"}`} onClick={() => setSelectedSize(size)}>{size}</button>
-                ))}
+            )}
+          </div>
+
+          {/* Sizes */}
+          <div className="min-h-[44px]">
+            {sizes.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs text-muted-foreground font-medium">Size</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sizes.map((size) => (
+                    <button key={size} onClick={(e) => { e.stopPropagation(); e.preventDefault(); setSelectedSize(size); }} className={`min-w-[2.2rem] h-7 px-2 rounded-lg text-xs font-semibold transition-all border ${selectedSize === size ? "bg-primary text-white border-primary" : "bg-card border-border hover:border-primary text-foreground"}`}>{size}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </CardContent>
+
       <CardFooter className="p-4 pt-0">
-        <Button className="w-full font-semibold" onClick={handleAddToCart} disabled={isAddingToCart || isAddedToCart}>{isAddingToCart ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : isAddedToCart ? <><Check className="mr-2 h-4 w-4" /> Added to Cart</> : <><ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart</>}</Button>
+        <Button className="w-full font-semibold" onClick={handleAddToCart} disabled={isAddingToCart || isAddedToCart}>
+          {isAddingToCart ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Adding...</> : isAddedToCart ? <><Check className="mr-2 h-4 w-4" /> Added to Cart</> : <><ShoppingCart className="mr-2 h-4 w-4" /> Add to Cart</>}
+        </Button>
       </CardFooter>
     </Card>
   );

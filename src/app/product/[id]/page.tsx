@@ -78,6 +78,7 @@ function ProductContent() {
     sizes: product.sizes || [],
     fabric: product.fabric || "",
     highlights: product.highlights || [],
+    pageContent: product.pageContent || "",
     views: product.views,
   };
 

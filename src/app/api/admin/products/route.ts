@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       sizes: aiData.sizes,
       fabric: aiData.fabric,
       highlights: aiData.highlights,
+      pageContent: aiData.pageContent,
       views: 0
     });
     
@@ -76,6 +77,7 @@ export async function PATCH(request: Request) {
       sizes: aiData.sizes,
       fabric: aiData.fabric,
       highlights: aiData.highlights,
+      pageContent: aiData.pageContent,
     }, { new: true });
 
     return NextResponse.json({ success: true, product: updated, aiData });

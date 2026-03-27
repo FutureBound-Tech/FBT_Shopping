@@ -17,6 +17,7 @@ export interface IProduct extends Document {
   sizes: string[];
   fabric: string;
   highlights: string[];
+  pageContent: string;
   views: number;
   createdAt: Date;
 }
@@ -39,6 +40,7 @@ const ProductSchema: Schema = new Schema(
     sizes: { type: [String], default: [] },
     fabric: { type: String, default: '' },
     highlights: { type: [String], default: [] },
+    pageContent: { type: String, default: '' },
     views: { type: Number, default: 0 },
   },
   { timestamps: true }

@@ -9,7 +9,42 @@ export default function Footer() {
     <footer className="footer-luxury border-t border-white/5 bg-background pt-20 pb-12 relative overflow-hidden">
       {/* Background Glow */}
       <div className="absolute -bottom-40 -left-60 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-      
+
+      {/* ── SEO Content Section ── */}
+      <div className="container relative z-10 mb-16">
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          <h2 className="text-2xl font-bold tracking-tight">
+            FBT Shopping — Nellore&rsquo;s Trusted Destination for Quality Sarees &amp; Dresses
+          </h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Welcome to <strong>FBT Shopping</strong>, your one-stop online store for premium <strong>sarees</strong>,{' '}
+            <strong>lehengas</strong>, <strong>designer dresses</strong>, and <strong>anarkalis</strong> at the best prices.
+            Based in <strong>Nellore, Andhra Pradesh</strong>, we bring you the latest collections in{' '}
+            <strong>banarasi silk sarees</strong>, <strong>wrinkle crush sarees</strong>,{' '}
+            <strong>tasar silk lehengas</strong>, and <strong>embroidery dresses</strong> — all handpicked for quality and style.
+          </p>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Whether you&rsquo;re looking for <strong>party wear sarees</strong>, <strong>wedding sarees</strong>,{' '}
+            <strong>casual cotton dresses</strong>, or <strong>festival ethnic wear</strong>,{' '}
+            <strong>FBT Shop</strong> has it all. We offer <strong>free delivery</strong>,{' '}
+            <strong>secure payments</strong>, and <strong>easy returns</strong> on every order.
+            Shop <strong>quality sarees</strong> and <strong>quality dresses</strong> online from{' '}
+            <strong>FBT Nellore</strong> — trusted by thousands of happy customers across India.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            {[
+              'Sarees Online', 'Designer Dresses', 'Lehenga Choli', 'Banarasi Silk',
+              'Embroidery Sarees', 'Party Wear', 'Wedding Collection', 'FBT Nellore',
+              'Quality Ethnic Wear', 'Cotton Sarees', 'Anarkali Suits', 'Latest Arrivals',
+            ].map(tag => (
+              <span key={tag} className="px-3 py-1 bg-muted/40 rounded-full text-xs text-muted-foreground font-medium">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="container relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
           
@@ -22,7 +57,7 @@ export default function Footer() {
               <span className="text-2xl font-black tracking-tighter">FBT <span className="text-primary">Shop</span></span>
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-xs">
-              Crafting an elite shopping experience with AI-powered precision and elite fashion curation for sarees and dresses.
+              Premium quality sarees, lehengas, and designer dresses from FBT Shopping, Nellore. AI-powered curation for the best ethnic wear.
             </p>
             <div className="flex items-center gap-4">
                {[Globe, Smartphone, Mail].map((Icon, idx) => (
@@ -37,8 +72,17 @@ export default function Footer() {
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.2em] mb-8 text-primary">Collections</h3>
             <ul className="space-y-4">
-              {["Exclusive Sarees", "Designer Dresses", "New Arrivals", "Premium Cotton"].map(link => (
-                <li key={link}><Link href="/" className="text-sm font-medium text-muted-foreground hover:text-white transition-colors">{link}</Link></li>
+              {[
+                { label: 'Exclusive Sarees', href: '/?category=saree' },
+                { label: 'Designer Dresses', href: '/?category=dress' },
+                { label: 'New Arrivals', href: '/?sort=newest' },
+                { label: 'Premium Collection', href: '/' },
+              ].map(link => (
+                <li key={link.label}>
+                  <Link href={link.href} className="text-sm font-medium text-muted-foreground hover:text-white transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
               ))}
             </ul>
           </div>
@@ -49,8 +93,8 @@ export default function Footer() {
             <ul className="space-y-4">
               <li><Link href="/privacy" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Privacy Policy</Link></li>
               <li><Link href="/terms" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Terms of Service</Link></li>
-              <li><Link href="/" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Shipping Metrics</Link></li>
-              <li><Link href="/" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Returns Central</Link></li>
+              <li><Link href="/" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Shipping Policy</Link></li>
+              <li><Link href="/" className="text-sm font-medium text-muted-foreground hover:text-secondary transition-colors">Return Policy</Link></li>
             </ul>
           </div>
 
@@ -59,13 +103,13 @@ export default function Footer() {
             <h3 className="text-xs font-black uppercase tracking-[0.2em] mb-8 text-white">Direct Connect</h3>
             <ul className="space-y-4">
               <li className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Mail size={16} className="text-primary" /> support@fbt.shop
+                <Mail size={16} className="text-primary" /> support@fbt-shopping.com
               </li>
               <li className="flex items-center gap-3 text-sm text-muted-foreground">
-                <MapPin size={16} className="text-primary" /> Digital-First, India
+                <MapPin size={16} className="text-primary" /> Nellore, Andhra Pradesh, India
               </li>
               <li className="flex items-center gap-3 text-sm font-black text-white group cursor-pointer pt-2">
-                <Zap size={18} className="fill-primary text-primary animate-pulse" /> CONTACT ELITE SUPPORT
+                <Zap size={18} className="fill-primary text-primary animate-pulse" /> CONTACT SUPPORT
               </li>
             </ul>
           </div>
@@ -74,7 +118,7 @@ export default function Footer() {
 
         <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8 text-center md:text-left">
            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">
-             © 2026 FUTURE BOUND TECHNOLOGY (FBT). ARCHITECTURE BY ANTIGRAVITY.
+             &copy; 2026 FUTURE BOUND TECHNOLOGY (FBT). ARCHITECTURE BY ANTIGRAVITY.
            </p>
            <div className="flex items-center gap-10">
               <span className="text-[10px] font-bold text-muted-foreground/30 uppercase">Enterprise Protocol 2.4</span>
