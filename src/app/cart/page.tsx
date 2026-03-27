@@ -33,7 +33,7 @@ type ShippingAddress = {
   pincode: string;
 };
 
-type Step = 'cart' | 'verify' | 'address' | 'success';
+type Step = 'cart' | 'address' | 'success';
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -106,66 +106,9 @@ export default function CartPage() {
   };
 
   const checkVerificationAndProceed = async () => {
-    const storedUser = localStorage.getItem('fbt_user');
-    if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser);
-        if (user.verified) {
-          setStep('address');
-          return;
-        }
-      } catch (e) {}
-    }
-    
-    // Trigger OTP flow
-    setVerifying(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: address.mobileNumber, action: 'send' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        if (data.isWhitelistError || data.fallback) {
-          setError(data.message); // Will show on the verify step
-        }
-        setStep('verify');
-      } else {
-        setError(data.error || 'Failed to send verification code. Please try again.');
-      }
-    } catch (e) {
-      setError('Connection failed. Please check your internet.');
-    } finally {
-      setVerifying(false);
-    }
+    setStep('address');
   };
 
-  const handleOtpVerify = async () => {
-    setVerifying(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: address.mobileNumber, otp, action: 'verify' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        // Update user state to verified
-        const storedUser = JSON.parse(localStorage.getItem('fbt_user') || '{}');
-        localStorage.setItem('fbt_user', JSON.stringify({ ...storedUser, verified: true }));
-        setStep('address');
-      } else {
-        setError('Incorrect OTP. Try again.');
-      }
-    } catch (e) {
-      setError('Verification failed');
-    } finally {
-      setVerifying(false);
-    }
-  };
 
   const placeOrder = async () => {
     if (!isAddressValid()) return;
@@ -222,12 +165,11 @@ export default function CartPage() {
           <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/5 -translate-y-1/2 -z-1" />
           {[
             { id: 'cart', label: 'Cart', icon: ShoppingBag },
-            { id: 'verify', label: 'Verify', icon: ShieldCheck },
             { id: 'address', label: 'Ship', icon: MapPin },
             { id: 'success', label: 'Done', icon: CheckCircle }
           ].map((s, idx) => {
             const isActive = step === s.id;
-            const isDone = ['success', 'address', 'verify', 'cart'].indexOf(step) > idx;
+            const isDone = ['success', 'address', 'cart'].indexOf(step) > idx;
             return (
               <div key={s.id} className="relative z-10 flex flex-col items-center">
                 <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${isActive ? 'bg-primary border-primary scale-125 shadow-lg shadow-primary/30 text-white' : isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-background border-white/10 text-muted-foreground'}`}>
@@ -306,36 +248,6 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* STEP 2: OT VERIFICATION (If needed) */}
-        {step === 'verify' && (
-          <div className="max-w-md mx-auto py-10">
-             <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-10 rounded-[32px] text-center">
-                <div className="h-16 w-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary mx-auto mb-6">
-                  <Smartphone size={32} />
-                </div>
-                <h2 className="text-3xl font-black mb-2">Check Your Mobile</h2>
-                <p className="text-muted-foreground text-sm mb-10 leading-relaxed">
-                  We've sent a code to <span className="text-foreground font-bold font-mono">+91 {address.mobileNumber}</span> to secure your identity.
-                </p>
-                
-                <div className="space-y-6">
-                  <input 
-                    type="text" 
-                    maxLength={6} 
-                    className="w-full h-20 text-center text-4xl font-black font-mono bg-white/5 border border-white/10 rounded-2xl focus:ring-4 focus:ring-primary/20 outline-none transition-all tracking-[0.2em]" 
-                    placeholder="000000"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                  />
-                  {error && <p className="text-rose-400 text-xs font-bold uppercase">{error}</p>}
-                  <Button onClick={handleOtpVerify} className="w-full h-14 rounded-2xl text-lg font-black" disabled={otp.length < 6 || verifying}>
-                    {verifying ? <Loader2 size={24} className="animate-spin" /> : 'Confirm Digit Code'}
-                  </Button>
-                  <button onClick={() => setStep('cart')} className="text-xs font-black text-muted-foreground uppercase tracking-widest hover:text-primary transition-colors">Start Over</button>
-                </div>
-             </Card>
-          </div>
-        )}
 
         {/* STEP 3: SHIPPING ADDRESS */}
         {step === 'address' && (

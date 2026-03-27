@@ -42,10 +42,6 @@ export default function ProfilePage() {
   const [searched, setSearched] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   
-  // Verification states
-  const [verifying, setVerifying] = useState(false);
-  const [verStep, setVerStep] = useState<'none' | 'input'>('none');
-  const [otp, setOtp] = useState('');
 
   const handleSearch = async (targetMobile: string) => {
     if (!targetMobile.trim() || targetMobile.length < 10) {
@@ -91,55 +87,6 @@ export default function ProfilePage() {
     window.location.reload();
   };
 
-  const initiateVerification = async () => {
-    setVerifying(true);
-    setErrorMessage('');
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: user.mobileNumber, action: 'send' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        if (data.mockOtp) setErrorMessage(`Test Mode: Use ${data.mockOtp}`);
-        setVerStep('input');
-      } else {
-        setErrorMessage(data.error || 'Failed to send verification code');
-      }
-    } catch (e) {
-      setErrorMessage('Verification failed. Try again.');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    setVerifying(true);
-    setErrorMessage('');
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: user.mobileNumber, otp, action: 'verify' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        // Success! Update local user and state
-        const updatedUser = { ...user, verified: true };
-        setUser(updatedUser);
-        localStorage.setItem('fbt_user', JSON.stringify(updatedUser));
-        setVerStep('none');
-        setOtp('');
-      } else {
-        setErrorMessage(data.error || 'Incorrect code');
-      }
-    } catch (e) {
-      setErrorMessage('Verification error');
-    } finally {
-      setVerifying(false);
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -168,18 +115,12 @@ export default function ProfilePage() {
                <h1 className="text-3xl md:text-4xl font-black tracking-tight leading-none">
                  {user?.fullName || 'Shopaholic'}
                </h1>
-               <div className="flex items-center gap-2 mt-2">
-                 {user?.verified ? (
+                <div className="flex items-center gap-2 mt-2">
                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
-                      <ShieldCheck className="h-3.5 w-3.5" /> Verified Account
+                      <ShieldCheck className="h-3.5 w-3.5" /> FBT Member
                    </div>
-                 ) : (
-                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-widest bg-amber-500/5 px-3 py-1.5 rounded-full border border-amber-500/10">
-                      <ShieldAlert className="h-3.5 w-3.5" /> Identity Check Pending
-                   </div>
-                 )}
-                 <span className="text-muted-foreground text-xs font-bold ml-1">+91 {mobile.slice(-10)}</span>
-               </div>
+                   <span className="text-muted-foreground text-xs font-bold ml-1">+91 {mobile.slice(-10)}</span>
+                </div>
              </div>
           </div>
           
@@ -190,56 +131,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Verification Banner if NOT verified */}
-        {!user?.verified && verStep === 'none' && (
-           <Card className="mb-10 border-amber-500/20 bg-amber-500/5 backdrop-blur-xl rounded-[32px] overflow-hidden">
-             <div className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 justify-between">
-                <div className="flex items-center gap-5 text-center md:text-left">
-                  <div className="h-14 w-14 bg-amber-400/20 text-amber-400 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-400/10">
-                    <History className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black mb-1">Secure Your Account</h3>
-                    <p className="text-sm text-muted-foreground">Verification is required for high-value orders and faster support.</p>
-                  </div>
-                </div>
-                <Button onClick={initiateVerification} disabled={verifying} className="h-12 px-10 rounded-2xl font-black bg-amber-400 hover:bg-amber-500 text-amber-950 shadow-xl shadow-amber-400/20 min-w-[200px]">
-                  {verifying ? <Loader2 className="animate-spin" /> : "Verify with OTP"}
-                </Button>
-             </div>
-           </Card>
-        )}
-
-        {/* Verification Input if requested */}
-        {verStep === 'input' && (
-          <Card className="mb-10 border-primary/20 bg-primary/5 backdrop-blur-xl rounded-[32px] overflow-hidden animate-fade-in">
-             <div className="p-10 flex flex-col items-center max-w-lg mx-auto text-center space-y-6">
-                <div className="h-16 w-16 bg-primary/20 text-primary rounded-3xl flex items-center justify-center">
-                   <Smartphone size={32} />
-                </div>
-                <h3 className="text-2xl font-black">Confirm Mobile Number</h3>
-                <p className="text-muted-foreground text-sm max-w-[300px]">We've sent a 6-digit code to <span className="text-foreground font-black">+91 {mobile.slice(-10)}</span></p>
-                
-                <div className="w-full space-y-4">
-                   <input 
-                    type="text" 
-                    maxLength={6} 
-                    className="w-full h-16 text-center text-3xl font-black font-mono bg-white/5 border border-white/10 rounded-2xl focus:ring-4 focus:ring-primary/20 outline-none transition-all tracking-[0.2em]" 
-                    placeholder="000000"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                   />
-                   {errorMessage && <p className="text-rose-400 text-xs font-bold uppercase tracking-widest">{errorMessage}</p>}
-                   <div className="grid grid-cols-2 gap-4">
-                      <Button variant="outline" onClick={() => setVerStep('none')} className="h-12 rounded-2xl font-bold border-white/10">Cancel</Button>
-                      <Button onClick={handleVerifyOtp} disabled={verifying || otp.length < 6} className="h-12 rounded-2xl font-black shadow-xl shadow-primary/20">
-                         {verifying ? <Loader2 className="animate-spin" /> : "Verify Identity"}
-                      </Button>
-                   </div>
-                </div>
-             </div>
-          </Card>
-        )}
 
         {loading ? (
            <div className="flex flex-col items-center justify-center py-20 gap-4">

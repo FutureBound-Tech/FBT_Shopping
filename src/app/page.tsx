@@ -38,7 +38,7 @@ function HomeContent() {
   }, [category, sort]);
 
   // Extract products with videos for "Stories"
-  const storyProducts = products.filter(p => p.media.some(m => m.type === 'video'));
+  const storyProducts = products.filter(p => (p.media || []).some(m => m.type === 'video'));
   
   return (
     <main>
@@ -55,9 +55,9 @@ function HomeContent() {
             <X size={24} />
           </button>
           <div style={{ width: '100%', maxWidth: '400px', height: '80vh', background: '#000', borderRadius: '16px', overflow: 'hidden', position: 'relative' }}>
-            {activeStory.media.find(m => m.type === 'video') && (
+            {(activeStory.media || []).find(m => m.type === 'video') && (
               <video 
-                src={activeStory.media.find(m => m.type === 'video')?.url} 
+                src={(activeStory.media || []).find(m => m.type === 'video')?.url} 
                 autoPlay 
                 loop 
                 controls
@@ -90,7 +90,7 @@ function HomeContent() {
             </h2>
             <div className="stories-container">
               {storyProducts.map(product => {
-                const videoMedia = product.media.find(m => m.type === 'video');
+                const videoMedia = (product.media || []).find(m => m.type === 'video');
                 return (
                   <div key={product._id} className="story-wrapper animate-fade-in" onClick={() => setActiveStory(product)}>
                     <div className="story-ring">
@@ -135,8 +135,7 @@ function HomeContent() {
                   <ProductCard
                     name={product.title}
                     price={product.price}
-                    category={product.category}
-                    images={product.media.filter(m => m.type === 'image').map(m => m.url)}
+                    images={(product.media || []).filter(m => m.type === 'image').map(m => m.url)}
                     colors={product.colors || []}
                     sizes={product.sizes || []}
                     isNew={new Date(product.createdAt).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000}
