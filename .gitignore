@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# starter kits
+/starter-for-nuxt/
+/starter-for-nextjs/
+/dummy
