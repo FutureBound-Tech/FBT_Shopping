@@ -1,10 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, PackageSearch, Pencil, Trash2, X, Check, Plus, Sparkles } from 'lucide-react';
+import { Loader2, PackageSearch, Pencil, Trash2, X, Check, Plus, Sparkles, Copy, Download, CheckCheck, Image as ImageIcon } from 'lucide-react';
 import { IProduct } from '@/models/Product';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type ProductData = IProduct & { _id: string };
+
+const IgIcon = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+  </svg>
+);
 
 interface EditForm {
   title: string;
@@ -17,6 +26,13 @@ interface EditForm {
   highlights: string[];
 }
 
+interface InstagramState {
+  product: ProductData;
+  caption: string;
+  loading: boolean;
+  copied: boolean;
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<ProductData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +43,9 @@ export default function ProductsPage() {
   const [newColor, setNewColor] = useState('');
   const [newSize, setNewSize] = useState('');
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+
+  // Instagram modal state
+  const [igState, setIgState] = useState<InstagramState | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -111,7 +130,7 @@ export default function ProductsPage() {
       const data = await res.json();
       if (data.success) {
         setProducts(prev => prev.map(p => p._id === id ? data.product : p));
-        alert(`✅ AI Re-analysis done!\nColors: ${data.aiData.colors.join(', ') || 'none'}\nSizes: ${data.aiData.sizes.join(', ') || 'none'}`);
+        alert(`AI Re-analysis done!\nColors: ${data.aiData.colors.join(', ') || 'none'}\nSizes: ${data.aiData.sizes.join(', ') || 'none'}`);
       } else {
         alert('AI re-analysis failed: ' + data.error);
       }
@@ -120,6 +139,58 @@ export default function ProductsPage() {
       alert('Re-analysis failed. Check console.');
     } finally {
       setAnalyzingId(null);
+    }
+  };
+
+  // ─── Instagram Share ──────────────────────────────────────────
+  const openInstagram = async (product: ProductData) => {
+    setIgState({ product, caption: '', loading: true, copied: false });
+
+    try {
+      const res = await fetch('/api/admin/products/instagram-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: product.title,
+          description: product.description,
+          category: product.category,
+          colors: product.colors,
+          fabric: product.fabric,
+          price: product.price,
+          tags: product.tags,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIgState(prev => prev ? { ...prev, caption: data.caption, loading: false } : null);
+      } else {
+        setIgState(prev => prev ? { ...prev, caption: 'Failed to generate caption. Try again.', loading: false } : null);
+      }
+    } catch {
+      setIgState(prev => prev ? { ...prev, caption: 'Failed to generate caption. Try again.', loading: false } : null);
+    }
+  };
+
+  const copyCaption = () => {
+    if (!igState?.caption) return;
+    navigator.clipboard.writeText(igState.caption);
+    setIgState(prev => prev ? { ...prev, copied: true } : null);
+    setTimeout(() => setIgState(prev => prev ? { ...prev, copied: false } : null), 2000);
+  };
+
+  const downloadImage = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch {
+      window.open(url, '_blank');
     }
   };
 
@@ -228,7 +299,19 @@ export default function ProductsPage() {
                       <td style={{ padding: '1rem' }}>₹{product.price}</td>
                       <td style={{ padding: '1rem' }}>{product.views}</td>
                       <td style={{ padding: '1rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => openInstagram(product)}
+                            title="Share to Instagram"
+                            style={{
+                              background: 'linear-gradient(135deg, #833AB4, #E1306C, #F77737)',
+                              border: 'none',
+                              color: 'white', borderRadius: 8, padding: '0.4rem 0.6rem', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600,
+                            }}
+                          >
+                            <IgIcon size={14} /> IG
+                          </button>
                           <button
                             onClick={() => startEdit(product)}
                             style={{
@@ -442,6 +525,155 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          INSTAGRAM SHARE MODAL
+          ═══════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {igState && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay"
+            onClick={(e) => e.target === e.currentTarget && setIgState(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              transition={{ type: 'spring', damping: 25 }}
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-lg)',
+                width: '90%',
+                maxWidth: '650px',
+                maxHeight: '85vh',
+                overflow: 'auto',
+                padding: '2rem',
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #833AB4, #E1306C, #F77737)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <IgIcon size={20} />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>Instagram Reel Ready</h2>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>{igState.product.title}</p>
+                  </div>
+                </div>
+                <button onClick={() => setIgState(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 8 }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Media Grid */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.75rem' }}>
+                  <ImageIcon size={14} /> Media Files ({igState.product.media.length}) — Click to download
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  {igState.product.media.map((m, i) => (
+                    <div key={i} style={{ position: 'relative', cursor: 'pointer' }} onClick={() => downloadImage(m.url, `${igState.product.title.replace(/\s+/g, '_')}_${i + 1}.${m.type === 'video' ? 'mp4' : 'jpg'}`)}>
+                      {m.type === 'image' ? (
+                        <img src={m.url} alt="" style={{ width: 90, height: 110, borderRadius: 10, objectFit: 'cover', border: '2px solid var(--border-light)' }} />
+                      ) : (
+                        <video src={m.url} style={{ width: 90, height: 110, borderRadius: 10, objectFit: 'cover', border: '2px solid var(--border-light)' }} />
+                      )}
+                      <div style={{
+                        position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
+                        background: 'rgba(0,0,0,0.7)', borderRadius: 6, padding: '2px 6px',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>
+                        <Download size={10} color="white" />
+                        <span style={{ fontSize: '0.6rem', color: 'white', fontWeight: 600 }}>{m.type === 'video' ? 'MP4' : 'JPG'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>
+                  <span>AI-Generated Caption + Hashtags</span>
+                  <button
+                    onClick={copyCaption}
+                    disabled={!igState.caption || igState.loading}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      background: igState.copied ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                      border: '1px solid ' + (igState.copied ? 'rgba(16,185,129,0.4)' : 'var(--border-light)'),
+                      borderRadius: 8, padding: '0.35rem 0.75rem', cursor: 'pointer',
+                      color: igState.copied ? '#10b981' : 'var(--text-primary)',
+                      fontSize: '0.8rem', fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {igState.copied ? <><CheckCheck size={14} /> Copied!</> : <><Copy size={14} /> Copy Caption</>}
+                  </button>
+                </label>
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 12,
+                  padding: '1rem',
+                  maxHeight: '250px',
+                  overflow: 'auto',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  color: 'var(--text-secondary)',
+                }}>
+                  {igState.loading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 0' }}>
+                      <Loader2 size={20} className="loader" />
+                      <span>Generating viral caption with hashtags...</span>
+                    </div>
+                  ) : (
+                    igState.caption
+                  )}
+                </div>
+              </div>
+
+              {/* How to use */}
+              <div style={{
+                marginTop: '1.25rem', padding: '1rem', borderRadius: 12,
+                background: 'rgba(131, 58, 180, 0.1)', border: '1px solid rgba(131, 58, 180, 0.2)',
+                fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5,
+              }}>
+                <strong style={{ color: '#E1306C' }}>How to post:</strong>
+                <ol style={{ margin: '0.5rem 0 0 1.25rem', padding: 0 }}>
+                  <li>Download images above</li>
+                  <li>Copy the caption</li>
+                  <li>Open Instagram → Create Reel → Upload</li>
+                  <li>Paste caption and post</li>
+                </ol>
+              </div>
+
+              {/* Close button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                <button
+                  onClick={() => setIgState(null)}
+                  style={{
+                    padding: '0.6rem 1.5rem', borderRadius: 10, border: '1px solid var(--border-light)',
+                    background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

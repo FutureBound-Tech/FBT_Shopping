@@ -79,6 +79,7 @@ function ProductContent() {
     fabric: product.fabric || "",
     highlights: product.highlights || [],
     pageContent: product.pageContent || "",
+    tags: product.tags || [],
     views: product.views,
   };
 

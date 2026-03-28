@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { 
-  ArrowLeft, Trash2, ArrowRight, CheckCircle, MapPin, 
-  Package, ShoppingBag, ShieldCheck, Smartphone, 
-  Loader2, ChevronRight, History
+  ArrowLeft, Trash2, CheckCircle, MapPin, 
+  Package, ShoppingBag, ShieldCheck, 
+  Loader2, ChevronRight, History, Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 
 type CartItem = {
   cartId: string;
@@ -26,6 +26,7 @@ type CartItem = {
 type ShippingAddress = {
   fullName: string;
   mobileNumber: string;
+  email: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -33,26 +34,40 @@ type ShippingAddress = {
   pincode: string;
 };
 
-type Step = 'cart' | 'address' | 'success';
+type Step = 'cart' | 'address' | 'otp' | 'success';
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [step, setStep] = useState<Step>('cart');
   const [placing, setPlacing] = useState(false);
   const [orderId, setOrderId] = useState('');
-  const [otp, setOtp] = useState('');
-  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
-  
+
+  // OTP state
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   const [address, setAddress] = useState<ShippingAddress>({
     fullName: '',
     mobileNumber: '',
+    email: '',
     addressLine1: '',
     addressLine2: '',
     city: '',
     state: '',
     pincode: '',
   });
+
+  // Cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown(p => p - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const loadInitialData = useCallback(() => {
     const cart = JSON.parse(localStorage.getItem('fbt_cart') || '[]');
@@ -102,25 +117,105 @@ export default function CartPage() {
   };
 
   const isAddressValid = () => {
-    return address.fullName && address.mobileNumber && address.addressLine1 && address.city && address.state && address.pincode;
+    return address.fullName && address.email && address.email.includes('@') && address.mobileNumber && address.addressLine1 && address.city && address.state && address.pincode;
   };
 
-  const checkVerificationAndProceed = async () => {
-    setStep('address');
-  };
-
-
-  const placeOrder = async () => {
+  // ─── Send OTP ──────────────────────────────────────────────
+  const sendOtp = async () => {
     if (!isAddressValid()) return;
-    setPlacing(true);
+    setSendingOtp(true);
+    setError('');
+    setOtpError('');
+    setOtpDigits(['', '', '', '', '', '']);
 
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: address.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
+
+      setStep('otp');
+      setResendCooldown(60);
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 300);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send verification email');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  // ─── OTP Input Handler ─────────────────────────────────────
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) value = value.slice(-1);
+    if (value && !/^\d$/.test(value)) return;
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = value;
+    setOtpDigits(newDigits);
+    setOtpError('');
+
+    if (value && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit when all 6 digits entered
+    if (value && index === 5) {
+      const fullOtp = newDigits.join('');
+      if (fullOtp.length === 6) {
+        verifyAndPlaceOrder(fullOtp);
+      }
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setOtpDigits(pasted.split(''));
+      otpInputRefs.current[5]?.focus();
+      verifyAndPlaceOrder(pasted);
+    }
+  };
+
+  // ─── Verify OTP + Place Order ──────────────────────────────
+  const verifyAndPlaceOrder = async (otpCode?: string) => {
+    const fullOtp = otpCode || otpDigits.join('');
+    if (fullOtp.length !== 6) {
+      setOtpError('Please enter all 6 digits');
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setOtpError('');
+
+    try {
+      // Step 1: Verify OTP
+      const verifyRes = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: address.email, otp: fullOtp }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.error || 'Invalid OTP');
+
+      // Step 2: OTP verified — place order
+      setPlacing(true);
+      const orderRes = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerName: address.fullName,
           customerMobile: address.mobileNumber,
+          customerEmail: address.email,
           items: cartItems.map(item => ({
             product: item._id,
             title: item.title,
@@ -134,17 +229,20 @@ export default function CartPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to place order');
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) throw new Error(orderData.error || 'Failed to place order');
 
-      setOrderId(data.order._id);
+      setOrderId(orderData.order._id);
       localStorage.removeItem('fbt_cart');
       window.dispatchEvent(new Event('cart-updated'));
       setCartItems([]);
       setStep('success');
     } catch (err: any) {
-      alert(err.message || 'Something went wrong');
+      setOtpError(err.message || 'Verification failed');
+      setOtpDigits(['', '', '', '', '', '']);
+      otpInputRefs.current[0]?.focus();
     } finally {
+      setVerifyingOtp(false);
       setPlacing(false);
     }
   };
@@ -160,16 +258,25 @@ export default function CartPage() {
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Continue Shopping
         </Link>
 
+        {/* Error banner */}
+        {error && (
+          <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
         {/* Dynamic Stepper */}
         <div className="flex items-center justify-between max-w-xl mx-auto mb-12 relative px-4">
           <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/5 -translate-y-1/2 -z-1" />
           {[
             { id: 'cart', label: 'Cart', icon: ShoppingBag },
             { id: 'address', label: 'Ship', icon: MapPin },
+            { id: 'otp', label: 'Verify', icon: ShieldCheck },
             { id: 'success', label: 'Done', icon: CheckCircle }
           ].map((s, idx) => {
             const isActive = step === s.id;
-            const isDone = ['success', 'address', 'cart'].indexOf(step) > idx;
+            const steps: Step[] = ['cart', 'address', 'otp', 'success'];
+            const isDone = steps.indexOf(step) > idx;
             return (
               <div key={s.id} className="relative z-10 flex flex-col items-center">
                 <div className={`h-10 w-10 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${isActive ? 'bg-primary border-primary scale-125 shadow-lg shadow-primary/30 text-white' : isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-background border-white/10 text-muted-foreground'}`}>
@@ -236,11 +343,11 @@ export default function CartPage() {
                    <div className="flex justify-between text-2xl font-black"><span>Total</span> <span>₹{total.toLocaleString('en-IN')}</span></div>
                  </div>
                  <Button 
-                   onClick={checkVerificationAndProceed} 
+                   onClick={() => setStep('address')} 
                    className="w-full h-14 rounded-2xl text-lg font-black shadow-lg shadow-primary/30 group"
-                   disabled={cartItems.length === 0 || verifying}
+                   disabled={cartItems.length === 0}
                  >
-                   {verifying ? <Loader2 className="animate-spin" /> : <>Complete Selection <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" /></>}
+                   Proceed to Checkout <ChevronRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
                  </Button>
                  <p className="text-[10px] text-center text-muted-foreground mt-4 font-bold uppercase tracking-widest">Secure Checkout via FBT Platform</p>
                </Card>
@@ -249,7 +356,7 @@ export default function CartPage() {
         )}
 
 
-        {/* STEP 3: SHIPPING ADDRESS */}
+        {/* STEP 2: SHIPPING ADDRESS */}
         {step === 'address' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2">
@@ -257,15 +364,19 @@ export default function CartPage() {
                  <h2 className="text-3xl font-black mb-8 flex items-center gap-4">Where to send? <MapPin className="text-primary h-8 w-8" /></h2>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Full Name</label>
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Full Name *</label>
                       <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none" value={address.fullName} onChange={e => handleAddressChange('fullName', e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Secure Contact</label>
-                      <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl opacity-60 flex items-center font-bold" disabled value={address.mobileNumber} />
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Mobile Number *</label>
+                      <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-mono" value={address.mobileNumber} onChange={e => handleAddressChange('mobileNumber', e.target.value)} placeholder="10-digit number" />
                     </div>
                     <div className="col-span-full space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Address Line 1</label>
+                      <label className="text-[10px] uppercase font-black text-amber-400 ml-1 flex items-center gap-1.5"><Mail size={12} /> Email Address * <span className="text-muted-foreground font-normal">(for order verification)</span></label>
+                      <input type="email" className="w-full h-14 px-5 bg-white/5 border border-amber-500/20 rounded-2xl focus:ring-2 focus:ring-amber-500/20 outline-none" value={address.email} onChange={e => handleAddressChange('email', e.target.value)} placeholder="you@example.com" />
+                    </div>
+                    <div className="col-span-full space-y-2">
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Address Line 1 *</label>
                       <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none" value={address.addressLine1} onChange={e => handleAddressChange('addressLine1', e.target.value)} placeholder="House/Flat/Building" />
                     </div>
                     <div className="col-span-full space-y-2">
@@ -273,15 +384,15 @@ export default function CartPage() {
                       <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none" value={address.addressLine2} onChange={e => handleAddressChange('addressLine2', e.target.value)} placeholder="Landmark/Locality" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">City</label>
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">City *</label>
                       <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none" value={address.city} onChange={e => handleAddressChange('city', e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">State</label>
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">State *</label>
                       <input className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none" value={address.state} onChange={e => handleAddressChange('state', e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Pincode</label>
+                      <label className="text-[10px] uppercase font-black text-muted-foreground ml-1">Pincode *</label>
                       <input maxLength={6} className="w-full h-14 px-5 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/20 outline-none font-mono" value={address.pincode} onChange={e => handleAddressChange('pincode', e.target.value)} />
                     </div>
                  </div>
@@ -302,15 +413,76 @@ export default function CartPage() {
                      <div className="flex justify-between text-2xl font-black uppercase"><span>Grand Total</span> <span>₹{total.toLocaleString('en-IN')}</span></div>
                   </div>
                   <Button 
-                    onClick={placeOrder} 
-                    className="w-full h-14 rounded-2xl text-lg font-bold bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
-                    disabled={!isAddressValid() || placing}
+                    onClick={sendOtp} 
+                    className="w-full h-14 rounded-2xl text-lg font-bold bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/20"
+                    disabled={!isAddressValid() || sendingOtp}
                   >
-                    {placing ? <Loader2 className="animate-spin" /> : 'Confirm Order Now'}
+                    {sendingOtp ? <><Loader2 className="animate-spin mr-2" /> Sending OTP...</> : <><ShieldCheck className="mr-2" /> Verify & Confirm Order</>}
                   </Button>
                   <button onClick={() => setStep('cart')} className="w-full text-xs font-black text-muted-foreground uppercase tracking-widest mt-6 hover:text-primary transition-colors">Adjust Selection</button>
                </Card>
             </div>
+          </div>
+        )}
+
+        {/* STEP 3: OTP VERIFICATION */}
+        {step === 'otp' && (
+          <div className="max-w-lg mx-auto text-center">
+            <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-10 rounded-[32px]">
+              <div className="h-16 w-16 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500 mx-auto mb-6">
+                <Mail size={32} />
+              </div>
+              <h2 className="text-2xl font-black mb-2">Check Your Email</h2>
+              <p className="text-muted-foreground mb-8">
+                We sent a 6-digit code to <span className="text-foreground font-bold">{address.email}</span>
+              </p>
+
+              {/* OTP Input boxes */}
+              <div className="flex justify-center gap-3 mb-6" onPaste={handleOtpPaste}>
+                {otpDigits.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={el => { otpInputRefs.current[i] = el; }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={e => handleOtpChange(i, e.target.value)}
+                    onKeyDown={e => handleOtpKeyDown(i, e)}
+                    className="text-center text-2xl font-black bg-white/5 border-2 border-white/10 rounded-2xl focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    style={{ width: '52px', height: '64px' }}
+                    autoFocus={i === 0}
+                  />
+                ))}
+              </div>
+
+              {otpError && (
+                <p className="text-rose-400 text-sm font-medium mb-4">{otpError}</p>
+              )}
+
+              <Button
+                onClick={() => verifyAndPlaceOrder()}
+                disabled={verifyingOtp || placing || otpDigits.join('').length !== 6}
+                className="w-full h-14 rounded-2xl text-lg font-bold bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 mb-4"
+              >
+                {verifyingOtp || placing ? <><Loader2 className="animate-spin mr-2" /> Verifying & Placing Order...</> : 'Confirm Order'}
+              </Button>
+
+              {/* Resend */}
+              <div className="mt-4">
+                {resendCooldown > 0 ? (
+                  <p className="text-sm text-muted-foreground">Resend code in <span className="text-foreground font-bold">{resendCooldown}s</span></p>
+                ) : (
+                  <button onClick={sendOtp} disabled={sendingOtp} className="text-sm text-primary font-bold hover:underline">
+                    {sendingOtp ? 'Sending...' : 'Resend Code'}
+                  </button>
+                )}
+              </div>
+
+              <button onClick={() => setStep('address')} className="block mx-auto text-xs font-black text-muted-foreground uppercase tracking-widest mt-8 hover:text-primary transition-colors">
+                Change Email / Address
+              </button>
+            </Card>
           </div>
         )}
 

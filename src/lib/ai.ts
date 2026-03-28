@@ -12,39 +12,166 @@ export interface AIProductData {
   highlights: string[];
   description: string;
   pageContent: string;
+  tags: string[];
+}
+
+export interface AIImageData {
+  title: string;
+  description: string;
+  tags: string[];
+  category: 'saree' | 'dress';
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Color extraction from image using Groq Vision
+//  Image Analysis Engine (Multimodal - from AI Brain)
+// ─────────────────────────────────────────────────────────────
+export async function analyzeImage(imageUrl: string): Promise<AIImageData | null> {
+  if (!imageUrl) return null;
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional fashion e-commerce catalog expert. You must provide product analysis in valid JSON format only.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Analyze this clothing/textile product image and provide:
+              1. A catchy professional product title.
+              2. A detailed, premium product description highlighting possible fabric, style, and occasions.
+              3. A list of relevant tags (color, category, style, material).
+              
+              Return the response ONLY as a JSON object with the keys: "title", "description", "tags" (array of strings), and "category" (either "saree" or "dress").`
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageUrl }
+            }
+          ]
+        }
+      ],
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      temperature: 0.5,
+      max_tokens: 1024,
+      response_format: { type: 'json_object' }
+    });
+
+    const raw = chatCompletion.choices[0]?.message?.content?.trim() || '';
+    const parsed = JSON.parse(raw);
+
+    return {
+      title: String(parsed.title || ''),
+      description: String(parsed.description || ''),
+      tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+      category: parsed.category === 'saree' ? 'saree' : 'dress',
+    };
+  } catch (err) {
+    console.error('[AI] Image analysis failed:', err);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Color extraction from MULTIPLE images using Groq Vision
 // ─────────────────────────────────────────────────────────────
 async function extractColorsFromImage(imageUrl: string): Promise<string[]> {
   if (!imageUrl) return [];
 
   try {
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.2-11b-vision-preview',
+      // Use the same Groq multimodal model as the AI Brain reference
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Look at this garment image. Identify the main colors of the clothing item only. Reply with ONLY a comma-separated list of standard color names. Examples: "Red, Gold", "Royal Yellow, Rani Pink", "Peacock Teal". Max 4 colors. No explanation.',
+              text: `You are a professional color analyst for Indian ethnic fashion. Analyze this garment image carefully.
+
+TASK: Identify ONLY the single most dominant base color of the saree body (the main fabric color).
+
+RULES:
+- Use precise Indian fashion color names where applicable: Rani Pink, Royal Yellow, Peacock Teal, Mehendi Green, Mustard, Saffron, Magenta, Bottle Green, Navy Blue, Wine, Maroon, Turquoise, Lavender, Coral, Peach, Ivory, Cream, Beige, Charcoal
+- IGNORE border, blouse piece, embroidery, piping, zari, motifs/prints, and background
+- If the saree is clearly multi-color but has one dominant base, return ONLY that base
+- Return exactly 1 color
+
+RESPOND WITH ONLY JSON:
+{"colors":["Royal Yellow"]}`,
             },
             { type: 'image_url', image_url: { url: imageUrl } },
           ],
         },
       ],
       temperature: 0.1,
-      max_tokens: 60,
+      max_tokens: 80,
+      response_format: { type: 'json_object' },
     });
 
     const raw = completion.choices[0]?.message?.content?.trim() || '';
-    return raw.split(',').map(c => c.trim()).filter(Boolean);
+    let colors: string[] = [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        colors = parsed;
+      } else if (Array.isArray(parsed?.colors)) {
+        colors = parsed.colors;
+      }
+    } catch {
+      // Fallback to comma-separated parsing if JSON parsing fails
+      colors = raw.split(',').map(c => c.trim());
+    }
+
+    // Keep only the most dominant color (first)
+    const cleaned = colors.map(c => String(c).trim()).filter(Boolean);
+    return cleaned.length ? [cleaned[0]] : [];
   } catch (err) {
     console.error('[AI] Vision color extraction failed:', err);
     return [];
   }
+}
+
+export async function extractColorsFromAllImages(imageUrls: string[]): Promise<string[]> {
+  if (!imageUrls.length) return [];
+
+  // Filter only image URLs (skip videos)
+  const imageOnlyUrls = imageUrls.filter(url =>
+    !url.match(/\.(mp4|mov|avi|webm|mkv)(\?|$)/i) &&
+    !url.includes('/video/')
+  );
+
+  if (!imageOnlyUrls.length) return [];
+
+  // Analyze ALL images in parallel
+  const results = await Promise.allSettled(
+    imageOnlyUrls.map(url => extractColorsFromImage(url))
+  );
+
+  // Collect only the dominant color from each image
+  const allColors: string[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      if (result.value.length > 0) allColors.push(result.value[0]);
+    }
+  }
+
+  // Deduplicate with case-insensitive comparison, preserve first occurrence casing
+  const seen = new Map<string, string>();
+  for (const color of allColors) {
+    const key = color.toLowerCase().trim();
+    if (key && !seen.has(key)) {
+      seen.set(key, color.trim());
+    }
+  }
+
+  const uniqueColors = Array.from(seen.values());
+  console.log(`[AI] Extracted ${uniqueColors.length} unique colors from ${imageOnlyUrls.length} images:`, uniqueColors);
+  return uniqueColors;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -52,7 +179,7 @@ async function extractColorsFromImage(imageUrl: string): Promise<string[]> {
 // ─────────────────────────────────────────────────────────────
 export async function parseProductFromDescription(
   rawInput: string,
-  imageUrl?: string
+  imageUrls: string[] = []
 ): Promise<AIProductData> {
 
   const systemPrompt = `You are an expert e-commerce product analyst and copywriter for FBT Shopping — a premium Indian ethnic wear brand specializing in sarees, lehengas, and dresses.
@@ -146,7 +273,7 @@ Remember:
       max_tokens: 2000,
       response_format: { type: 'json_object' },
     }),
-    imageUrl ? extractColorsFromImage(imageUrl) : Promise.resolve([] as string[]),
+    imageUrls.length ? extractColorsFromAllImages(imageUrls) : Promise.resolve([] as string[]),
   ]);
 
   // Parse text result
@@ -192,6 +319,7 @@ Remember:
       highlights: [],
       description: rawInput.slice(0, 200),
       pageContent: '',
+      tags: [],
     };
   }
 
@@ -205,5 +333,6 @@ Remember:
     highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
     description: String(parsed.description || ''),
     pageContent: String(parsed.pageContent || ''),
+    tags: Array.isArray(parsed.tags) ? parsed.tags : [],
   };
 }

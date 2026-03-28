@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IShippingAddress {
   fullName: string;
   mobileNumber: string;
+  email: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -22,6 +23,7 @@ export interface IOrderItem {
 export interface IOrder extends Document {
   customerName: string;
   customerMobile: string;
+  customerEmail: string;
   items: IOrderItem[];
   totalAmount: number;
   shippingAddress: IShippingAddress;
@@ -34,6 +36,7 @@ const OrderSchema: Schema = new Schema(
   {
     customerName: { type: String, required: true },
     customerMobile: { type: String, required: true },
+    customerEmail: { type: String, default: '' },
     items: [
       {
         product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -48,6 +51,7 @@ const OrderSchema: Schema = new Schema(
     shippingAddress: {
       fullName: { type: String, required: true },
       mobileNumber: { type: String, required: true },
+      email: { type: String, default: '' },
       addressLine1: { type: String, required: true },
       addressLine2: { type: String, default: '' },
       city: { type: String, required: true },

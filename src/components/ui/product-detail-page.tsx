@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, ShoppingCart, Eye, Check, Minus, Plus,
   Truck, Shield, RotateCcw, ChevronLeft, ChevronRight,
-  Heart, Star,
+  Heart, Star, ArrowRight,
 } from "lucide-react";
 
 interface MappedProduct {
@@ -23,6 +23,7 @@ interface MappedProduct {
   fabric: string;
   highlights: string[];
   pageContent: string;
+  tags: string[];
   views: number;
 }
 
@@ -38,13 +39,30 @@ export function ProductDetailPage({ product, onAddToCart }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
+  const [isInCart, setIsInCart] = useState(false);
 
   const hasColors = product.colors.length > 0;
   const hasSizes = product.sizes.length > 0;
 
+  // Check if product is in cart
+  const checkCartStatus = () => {
+    const cart = JSON.parse(localStorage.getItem('fbt_cart') || '[]');
+    const inCart = cart.some((item: any) => item._id === product._id);
+    setIsInCart(inCart);
+  };
+
+  useEffect(() => {
+    checkCartStatus();
+    // Listen for cart updates from other pages
+    const handleCartUpdate = () => checkCartStatus();
+    window.addEventListener('cart-updated', handleCartUpdate);
+    return () => window.removeEventListener('cart-updated', handleCartUpdate);
+  }, [product._id]);
+
   const handleAddToCart = () => {
     onAddToCart({ color: selectedColor, size: selectedSize, quantity });
     setAdded(true);
+    setIsInCart(true);
     setTimeout(() => setAdded(false), 2000);
   };
 
@@ -233,18 +251,43 @@ export function ProductDetailPage({ product, onAddToCart }: Props) {
             </div>
           </div>
 
-          {/* ══ ADD TO CART ══ */}
+          {/* ══ ACTION BUTTONS ══ */}
           <div className="pt-3 space-y-3">
-            <Button
-              onClick={handleAddToCart}
-              className={`w-full h-14 text-lg font-bold rounded-2xl transition-all ${added ? "bg-emerald-500 hover:bg-emerald-500 shadow-lg shadow-emerald-500/30" : "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30"}`}
-            >
-              {added ? (
-                <><Check className="mr-2 h-5 w-5" /> Added to Cart!</>
-              ) : (
-                <><ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart — ₹{(product.price * quantity).toLocaleString("en-IN")}</>
-              )}
-            </Button>
+            {isInCart ? (
+              /* ── Already in cart: Show Go to Cart ── */
+              <Link href="/cart" className="block">
+                <Button className="w-full h-14 text-lg font-bold rounded-2xl bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 transition-all">
+                  <ShoppingCart className="mr-2 h-5 w-5" /> Go to Cart <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+            ) : (
+              /* ── Not in cart: Show Add to Cart + Buy Now ── */
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleAddToCart}
+                  className={`flex-1 h-14 text-base font-bold rounded-2xl transition-all ${added ? "bg-emerald-500 hover:bg-emerald-500 shadow-lg shadow-emerald-500/30" : "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30"}`}
+                >
+                  {added ? (
+                    <><Check className="mr-2 h-5 w-5" /> Added!</>
+                  ) : (
+                    <><ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart</>
+                  )}
+                </Button>
+                <Link href="/cart">
+                  <Button
+                    onClick={() => {
+                      if (!added) {
+                        handleAddToCart();
+                      }
+                    }}
+                    variant="outline"
+                    className="h-14 px-6 text-base font-bold rounded-2xl border-2 border-primary/30 text-primary hover:bg-primary/10 hover:border-primary transition-all"
+                  >
+                    <ArrowRight className="mr-2 h-5 w-5" /> Buy Now
+                  </Button>
+                </Link>
+              </div>
+            )}
 
             {/* Trust badges */}
             <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
@@ -273,6 +316,20 @@ export function ProductDetailPage({ product, onAddToCart }: Props) {
                       return part;
                     })}
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ══ AI TAGS ══ */}
+          {product.tags && product.tags.length > 0 && (
+            <div className="border-t border-border pt-4 mt-2">
+              <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground block mb-2">AI Tags</span>
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">
+                    {tag}
+                  </Badge>
                 ))}
               </div>
             </div>
