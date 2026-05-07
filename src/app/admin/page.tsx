@@ -91,7 +91,7 @@ export default function AdminDashboard() {
       <div className="glass-panel" style={{ padding: '2rem' }}>
         <h3 style={{ marginBottom: '1.5rem' }}>Recent Orders</h3>
         {stats.recentOrders.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No recent orders.</p>
+          <p style={{ color: 'var(--text-muted)' }}>No recent orders....</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {stats.recentOrders.map(order => (
@@ -133,7 +133,7 @@ export default function AdminDashboard() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem',
             marginTop: '1.5rem', color: 'var(--color-secondary)', fontSize: '0.85rem', fontWeight: 600
           }}>
-            View all orders <ArrowRight size={16} />
+            View All Orders <ArrowRight size={16} />
           </Link>
         )}
       </div>
